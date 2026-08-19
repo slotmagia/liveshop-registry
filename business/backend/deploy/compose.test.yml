@@ -1,0 +1,9 @@
+name: liveshop-registry-test
+services:
+  grpc-certs:
+    image: ${LIVESHOP_IMAGE_PREFIX}/backend:${LIVESHOP_IMAGE_TAG}
+    build: !reset null
+  registry:
+    image: ${LIVESHOP_IMAGE_PREFIX}/backend:${LIVESHOP_IMAGE_TAG}
+    build: !reset null
+    ports: !override ["127.0.0.1:18070:18070", "127.0.0.1:19070:19070"]

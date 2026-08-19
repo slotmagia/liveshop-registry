@@ -1,0 +1,75 @@
+name: liveshop-registry-local
+services:
+  # Hostname cannot be registry-db: Platform's local MySQL still uses that
+  # name on the shared liveshop-local network, and Docker DNS would send
+  # migrate/app traffic to liveshop_registry instead of this database.
+  registry-center-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: liveshop_module_registry
+      MYSQL_USER: liveshop
+      MYSQL_PASSWORD: liveshop-local
+      MYSQL_ROOT_PASSWORD: liveshop-local-root
+    command:
+      [
+        "--default-time-zone=+00:00",
+        "--character-set-server=utf8mb4",
+        "--collation-server=utf8mb4_0900_ai_ci",
+      ]
+    ports: ["127.0.0.1:33075:3306"]
+    volumes:
+      - registry-center-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysql", "-h", "127.0.0.1", "-uliveshop", "-pliveshop-local", "liveshop_module_registry", "-e", "SELECT 1"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  registry-migrate:
+    image: mysql:8.4
+    environment:
+      MYSQL_PWD: liveshop-local
+      MYSQL_HOST: registry-center-db
+      MYSQL_USER: liveshop
+      MYSQL_DATABASE: liveshop_module_registry
+    volumes:
+      - ../migrations:/migrations:ro
+      - ../tools/migrate.sh:/migrate.sh:ro
+    command: ["sh", "/migrate.sh"]
+    depends_on:
+      registry-center-db: {condition: service_healthy}
+  grpc-certs:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      additional_contexts: {kernel: ../../../../kernel-go, protocol: ../../../../liveshop-protocol/platform}
+    entrypoint: ["/app/grpccerts"]
+    command: ["-out", "/certs", "-owner", "65532"]
+    volumes: ["grpc-certs:/certs"]
+    user: "0:0"
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN"]
+  registry:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      additional_contexts: {kernel: ../../../../kernel-go, protocol: ../../../../liveshop-protocol/platform}
+    command: ["-config", "/app/configs/registry.compose.yaml"]
+    ports: ["127.0.0.1:18070:18070", "127.0.0.1:19070:19070"]
+    volumes: ["grpc-certs:/run/grpc:ro"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    depends_on:
+      registry-migrate: {condition: service_completed_successfully}
+      grpc-certs: {condition: service_completed_successfully}
+volumes:
+  registry-center-db-data:
+  grpc-certs:
+    name: liveshop-grpc-certs
+networks:
+  default:
+    name: liveshop-local
+    external: true

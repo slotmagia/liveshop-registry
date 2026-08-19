@@ -1,0 +1,46 @@
+﻿name: Deploy test
+on:
+  push:
+    branches: [main]
+concurrency:
+  group: test-5-140
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: [self-hosted, liveshop-test]
+    permissions:
+      contents: read
+      packages: write
+    env:
+      CI_PROJECT_DIR: ${{ github.workspace }}
+      CI_COMMIT_SHA: ${{ github.sha }}
+      CI_PIPELINE_ID: ${{ github.run_id }}
+      CI_REGISTRY: ghcr.io
+      CI_REGISTRY_USER: ${{ github.actor }}
+      CI_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      CI_REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
+      LIVESHOP_CLONE_TOKEN: ${{ secrets.LIVESHOP_CLONE_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PLATFORM_REGISTRY_URL: http://127.0.0.1:18070/internal/v1/module-registry
+      MODULE_NAME: liveshop-registry
+      MODULE_ID: registry
+      DEPENDENCY_REPOSITORIES: kernel-go liveshop-protocol
+      BACKEND_PORT: 18070
+      READINESS_URL: http://127.0.0.1:18070/readyz
+      READINESS_MODE: success
+      REGISTER_MODULE: false
+      BACKEND_ORIGIN: ""
+      GRPC_ENDPOINT: ""
+      ARTIFACT_URLS: '{}'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+      - name: Export short SHA
+        run: echo "CI_COMMIT_SHORT_SHA=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+      - name: Build images
+        run: bash ci/build.sh
+      - name: Deploy test
+        run: |
+          bash ci/prepare-contexts.sh
+          bash ci/deploy.sh

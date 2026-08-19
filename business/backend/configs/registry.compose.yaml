@@ -1,0 +1,48 @@
+# 仅用于 backend/deploy/compose.local.yml 的本地开发配置，禁止用于生产。
+service: registry
+log:
+  level: info
+  format: text
+server:
+  http: ":18070"
+  grpc: ":19070"
+database:
+  url: liveshop:liveshop-local@tcp(registry-center-db:3306)/liveshop_module_registry?parseTime=true&loc=UTC&charset=utf8mb4&collation=utf8mb4_0900_ai_ci
+  max_open_connections: 40
+  max_idle_connections: 10
+  connection_max_lifetime: 30m
+  connection_max_idle_time: 5m
+workload_identity:
+  issuer: liveshop-workload-identity
+  http:
+    gateway:
+      key_id: gateway-workload-dev-1
+      public_key: ky88xYQS66lbhNA-cUpijVuxRWcWAdFRgMIHFKF7PkA
+      subject: liveshop-gateway
+      permissions: [registry.routes.read]
+    release:
+      key_id: ci-workload-dev-1
+      public_key: fkfxuRj0sxDYBT3U_qghrTrtjfv4y3djZObZ-EL_Zho
+      subject: module-release-ci
+      permissions: [registry.release.write, registry.activation.write]
+    platform:
+      key_id: platform-registry-client-dev-1
+      public_key: nR4OvI222ZE95HSUdTOYDSdOZV594RW-DH-6Kj693QA
+      subject: liveshop-platform
+      permissions: [registry.activation.write, registry.routes.read]
+  grpc:
+    gateway:
+      spiffe_id: spiffe://liveshop.local/gateway
+      subject: liveshop-gateway
+      permissions: [platform.registry.routes.read]
+    identity:
+      spiffe_id: spiffe://liveshop.local/identity
+      subject: liveshop-identity
+      permissions: [platform.registry.active-capabilities.read]
+http:
+  allowed_origins: [http://gateway.internal]
+grpc:
+  tls:
+    certificate_file: /run/grpc/registry-server.pem
+    private_key_file: /run/grpc/registry-server-key.pem
+    client_ca_file: /run/grpc/ca.pem

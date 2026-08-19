@@ -1,0 +1,10 @@
+run/
+*.log
+*.exe
+*.test
+*.out
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db

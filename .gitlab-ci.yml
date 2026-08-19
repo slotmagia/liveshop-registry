@@ -1,0 +1,51 @@
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - when: never
+
+stages:
+  - build
+  - deploy
+
+default:
+  tags:
+    - liveshop-test
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+variables:
+  GIT_DEPTH: "20"
+  DOCKER_BUILDKIT: "1"
+  PLATFORM_REGISTRY_URL: "http://127.0.0.1:18070/internal/v1/module-registry"
+  MODULE_NAME: "liveshop-registry"
+  MODULE_ID: "registry"
+  DEPENDENCY_REPOSITORIES: "kernel-go liveshop-protocol"
+  BACKEND_PORT: "18070"
+  READINESS_URL: "http://127.0.0.1:18070/readyz"
+  READINESS_MODE: "success"
+  REGISTER_MODULE: "false"
+  BACKEND_ORIGIN: ""
+  GRPC_ENDPOINT: ""
+  ARTIFACT_URLS: '{}'
+
+build_images:
+  stage: build
+  interruptible: true
+  script:
+    - bash ci/build.sh
+
+deploy_test:
+  stage: deploy
+  needs:
+    - build_images
+  interruptible: false
+  resource_group: test-5-140
+  environment:
+    name: test/5-140
+    url: http://192.168.5.140
+  script:
+    - bash ci/prepare-contexts.sh
+    - bash ci/deploy.sh
