@@ -42,3 +42,31 @@ func TestGenerateRejectsCorruptExistingTrustBundle(t *testing.T) {
 		t.Fatal("expected corrupt bundle to be rejected")
 	}
 }
+
+func TestGenerateRotatesWhenRequiredFileMissing(t *testing.T) {
+	output := t.TempDir()
+	if err := generate(output, false, -1); err != nil {
+		t.Fatalf("generate initial bundle: %v", err)
+	}
+	before, err := os.ReadFile(filepath.Join(output, "ca.pem"))
+	if err != nil {
+		t.Fatalf("read initial CA: %v", err)
+	}
+	if err := os.Remove(filepath.Join(output, "registry-server.pem")); err != nil {
+		t.Fatalf("remove registry server certificate: %v", err)
+	}
+
+	if err := generate(output, false, -1); err != nil {
+		t.Fatalf("rotate incomplete bundle: %v", err)
+	}
+	after, err := os.ReadFile(filepath.Join(output, "ca.pem"))
+	if err != nil {
+		t.Fatalf("read rotated CA: %v", err)
+	}
+	if bytes.Equal(before, after) {
+		t.Fatal("incomplete bundle was reused instead of rotated")
+	}
+	if _, err := os.Stat(filepath.Join(output, "registry-server.pem")); err != nil {
+		t.Fatalf("rotated bundle missing registry-server.pem: %v", err)
+	}
+}

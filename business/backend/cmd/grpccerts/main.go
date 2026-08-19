@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"math/big"
@@ -48,15 +49,24 @@ func generate(output string, force bool, owner int) error {
 				}
 			}
 			if err := validateExistingBundle(output, time.Now()); err != nil {
-				return fmt.Errorf("existing local gRPC trust bundle is unusable; rotate certificates with -force and keep MySQL volumes: %w", err)
-			}
-			if owner >= 0 {
-				if err := setBundleOwner(output, owner, owner); err != nil {
-					return fmt.Errorf("restore local gRPC trust bundle owner: %w", err)
+				if owner >= 0 {
+					if restoreErr := setBundleOwner(output, owner, owner); restoreErr != nil {
+						return fmt.Errorf("restore local gRPC trust bundle owner after inspect: %v (bundle: %w)", restoreErr, err)
+					}
 				}
+				if !errors.Is(err, os.ErrNotExist) {
+					return fmt.Errorf("existing local gRPC trust bundle is unusable; rotate certificates with -force and keep MySQL volumes: %w", err)
+				}
+				fmt.Fprintf(os.Stderr, "existing local gRPC trust bundle is missing required files (%v); rotating\n", err)
+			} else {
+				if owner >= 0 {
+					if err := setBundleOwner(output, owner, owner); err != nil {
+						return fmt.Errorf("restore local gRPC trust bundle owner: %w", err)
+					}
+				}
+				fmt.Printf("reusing local Registry gRPC certificates in %s\n", output)
+				return nil
 			}
-			fmt.Printf("reusing local Registry gRPC certificates in %s\n", output)
-			return nil
 		}
 	}
 	if err := os.MkdirAll(output, 0o700); err != nil {
